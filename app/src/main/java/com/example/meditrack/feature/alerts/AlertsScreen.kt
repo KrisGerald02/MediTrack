@@ -28,6 +28,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.meditrack.core.data.MedicationEntity
+import com.example.meditrack.core.data.StockLevel
 import com.example.meditrack.core.presentation.MediTrackViewModel
 import com.example.meditrack.core.ui.components.CategoryDivider
 import com.example.meditrack.core.ui.components.EmptyState
@@ -44,7 +46,7 @@ import com.example.meditrack.core.ui.components.softScrollEdges
 @Composable
 fun AlertsScreen(viewModel: MediTrackViewModel, onBack: () -> Unit) {
     val medications by viewModel.medications.collectAsState()
-    val lowStock = medications.filter { it.active && it.stock <= it.lowStockThreshold }
+    val stockAlerts = medications.filter { it.hasUnacknowledgedStockAlert }
 
     Scaffold(
         topBar = {
@@ -65,20 +67,20 @@ fun AlertsScreen(viewModel: MediTrackViewModel, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                AlertSummary(lowStock.size)
+                AlertSummary(stockAlerts.size)
             }
-            if (lowStock.isEmpty()) {
+            if (stockAlerts.isEmpty()) {
                 item {
                     EmptyState(
                         "Todo está al día",
-                        "No tienes tratamientos con inventario bajo."
+                        "No tienes alertas nuevas de inventario medio, bajo o agotado."
                     )
                 }
             }
-            if (lowStock.isNotEmpty()) {
-                item { CategoryDivider("Stock bajo") }
-                items(lowStock, key = { "stock-${it.id}" }) { medication ->
-                    LowStockAlert(medication)
+            if (stockAlerts.isNotEmpty()) {
+                item { CategoryDivider("Inventario por revisar") }
+                items(stockAlerts, key = { "stock-${it.id}-${it.stockLevel}" }) { medication ->
+                    StockAlert(medication) { viewModel.acknowledgeStockAlert(medication) }
                 }
             }
         }
@@ -108,7 +110,7 @@ private fun AlertSummary(lowStock: Int) {
             Column(Modifier.weight(1f)) {
                 Text("Centro de alertas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "$lowStock tratamientos con stock bajo",
+                    "$lowStock alertas de inventario sin confirmar",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -117,16 +119,31 @@ private fun AlertSummary(lowStock: Int) {
 }
 
 @Composable
-private fun LowStockAlert(medication: MedicationEntity) {
+private fun StockAlert(medication: MedicationEntity, onReceived: () -> Unit) {
+    val (title, message) = when (medication.stockLevel) {
+        StockLevel.OUT -> "${medication.name} · Sin existencias" to
+            "El inventario llegó a 0. Sus alarmas quedan pausadas hasta agregar existencias."
+        StockLevel.LOW -> "${medication.name} · Stock bajo" to
+            "Quedan ${medication.stock} pastillas · Umbral bajo: ${medication.lowStockThreshold}"
+        StockLevel.MEDIUM -> "${medication.name} · Stock medio" to
+            "Quedan ${medication.stock} pastillas. Conviene preparar una reposición."
+        StockLevel.GOOD -> medication.name to "Inventario suficiente"
+    }
     AlertCard(
         icon = { Icon(Icons.Default.Inventory2, null, tint = MaterialTheme.colorScheme.error) },
-        title = medication.name,
-        message = "Quedan ${medication.stock} pastillas · Alerta configurada en ${medication.lowStockThreshold}"
+        title = title,
+        message = message,
+        onReceived = onReceived
     )
 }
 
 @Composable
-private fun AlertCard(icon: @Composable () -> Unit, title: String, message: String) {
+private fun AlertCard(
+    icon: @Composable () -> Unit,
+    title: String,
+    message: String,
+    onReceived: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -147,6 +164,9 @@ private fun AlertCard(icon: @Composable () -> Unit, title: String, message: Stri
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = onReceived, modifier = Modifier.padding(top = 10.dp)) {
+                    Text("Recibido")
+                }
             }
         }
     }

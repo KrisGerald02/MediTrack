@@ -1,0 +1,34 @@
+ID,Historia de Usuario,Valor,Riesgo,Aprend.,Esfuerzo,Prioridad,Decisión / Release,Dependencia,Status
+HU-01,Conocer la aplicación mediante onboarding,5,3,3,3,Alta,REL-01: Base del producto,Ninguna,Implementada
+HU-02,Registrar nombre y finalidad de uso,5,3,3,2,Alta,REL-01: Base del producto,HU-01,Implementada
+HU-03,Omitir onboarding e ir al perfil,3,1,1,1,Media,REL-01: Base del producto,HU-01,Implementada
+HU-04,Crear medicina o suplemento,5,5,5,5,Alta,REL-01: Base del producto,HU-02,Implementada
+HU-05,Seleccionar horarios visualmente,5,3,3,3,Alta,REL-01: Base del producto,HU-04,Implementada
+HU-30,Consultar tratamientos por categoría,5,3,3,2,Alta,REL-01: Base del producto,HU-04,Implementada
+HU-06,Programar tratamiento por intervalos,5,5,5,5,Alta,REL-02: Tomas y recordatorios,"HU-04, HU-05",Implementada
+HU-07,Definir duración del tratamiento,5,3,3,3,Alta,REL-02: Tomas y recordatorios,HU-04,Implementada
+HU-09,Consultar el plan del día,5,5,3,3,Alta,REL-02: Tomas y recordatorios,"HU-04, HU-05",Implementada
+HU-10,Bloquear acciones antes de la hora,5,5,5,3,Alta,REL-02: Tomas y recordatorios,HU-09,Implementada
+HU-11,Marcar toma y descontar inventario,5,5,5,3,Alta,REL-02: Tomas y recordatorios,"HU-09, HU-10",Implementada
+HU-12,Posponer y recalcular la alarma,5,5,5,4,Alta,REL-02: Tomas y recordatorios,"HU-09, HU-10",Implementada
+HU-13,Recibir recordatorios repetitivos,5,5,5,5,Alta,REL-02: Tomas y recordatorios,"HU-05, HU-09",Implementada
+HU-14,Responder desde la notificación,5,5,5,4,Alta,REL-02: Tomas y recordatorios,"HU-11, HU-12, HU-13",Implementada
+HU-15,Recuperar alarmas al reiniciar,5,5,3,4,Alta,REL-02: Tomas y recordatorios,HU-13,Implementada
+HU-16,Mostrar inventario mediante colores,5,5,3,3,Alta,REL-03: Inventario y alertas,HU-04,Implementada
+HU-17,Agregar pastillas al inventario,5,3,3,3,Alta,REL-03: Inventario y alertas,HU-16,Implementada
+HU-18,Consultar el centro de alertas,3,3,3,2,Media,REL-03: Inventario y alertas,HU-16,Implementada
+HU-24,Recibir alertas de stock medio,3,3,3,2,Media,REL-03: Inventario y alertas,"HU-16, HU-18",Implementada
+HU-25,Confirmar una alerta como Recibida,3,1,1,2,Media,REL-03: Inventario y alertas,"HU-18, HU-24",Implementada
+HU-26,Suspender alarmas cuando el stock llegue a cero,5,5,5,4,Alta,REL-03: Inventario y alertas,"HU-13, HU-16",Implementada
+HU-27,Consultar los períodos sin stock,3,3,3,3,Media,REL-03: Inventario y alertas,"HU-16, HU-17, HU-26",Implementada
+HU-08,Editar o eliminar un tratamiento,5,3,3,3,Alta,REL-04: Seguimiento y tratamientos,HU-04,Implementada
+HU-19,Consultar cumplimiento mensual o entre fechas,5,3,5,4,Alta,REL-04: Seguimiento y tratamientos,"HU-11, HU-28",Implementada
+HU-20,Filtrar la actividad por tratamiento,3,1,3,2,Media,REL-04: Seguimiento y tratamientos,HU-19,Implementada
+HU-21,Filtrar el historial por estado,3,3,3,3,Media,REL-04: Seguimiento y tratamientos,"HU-11, HU-12, HU-28",Implementada
+HU-28,Registrar No tomada después de 24 horas,5,5,5,4,Alta,REL-04: Seguimiento y tratamientos,"HU-09, HU-13",Implementada
+HU-29,Inactivar tratamiento sin perder el historial,5,5,3,4,Alta,REL-04: Seguimiento y tratamientos,"HU-08, HU-15",Implementada
+HU-22,Adaptar la interfaz para texto grande,5,5,3,4,Alta,REL-05: Accesibilidad y personalización,REL-01 a REL-04,Implementada
+HU-23,Elegir el tema general de la aplicación,1,1,1,3,Baja,REL-05: Accesibilidad y personalización,HU-02,Implementada
+HU-31,Exportar un reporte para una cita médica,3,1,3,4,Baja,REL-05: Accesibilidad y personalización,"HU-19, HU-21",Mejora futura
+HU-32,Personalizar el sonido y la vibración,1,1,1,3,Baja,REL-05: Accesibilidad y personalización,HU-13,Mejora futura
+HU-33,Elegir un color independiente para cada tratamiento,1,1,1,2,Baja,REL-05: Accesibilidad y personalización,HU-04,Implementada

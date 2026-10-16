@@ -24,9 +24,29 @@ class MedicationAlarmReceiver : BroadcastReceiver() {
             val medication = app.repository.getMedication(id)
             if (medication != null) {
                 val scheduler = MedicationAlarmScheduler(context)
+                if (!medication.active || medication.stock <= 0 || !medication.isTreatmentDay(scheduledAt)) {
+                    scheduler.cancelRepeat(medication, time, scheduledAt)
+                    result.finish()
+                    return@launch
+                }
+                if (System.currentTimeMillis() >= scheduledAt + com.example.meditrack.core.data.MedicationRepository.DAY_MS) {
+                    app.repository.recordDose(
+                        com.example.meditrack.core.data.DailyDose(
+                            medication = medication,
+                            scheduledAt = scheduledAt,
+                            time = time,
+                            status = com.example.meditrack.core.data.DoseStatus.PENDING
+                        ),
+                        com.example.meditrack.core.data.DoseStatus.MISSED
+                    )
+                    scheduler.cancelRepeat(medication, time, scheduledAt)
+                    result.finish()
+                    return@launch
+                }
                 val status = app.repository.getDoseLog(id, scheduledAt)?.status
                 val resolved = status == com.example.meditrack.core.data.DoseStatus.TAKEN.name ||
-                    status == com.example.meditrack.core.data.DoseStatus.SKIPPED.name
+                    status == com.example.meditrack.core.data.DoseStatus.SKIPPED.name ||
+                    status == com.example.meditrack.core.data.DoseStatus.MISSED.name
                 if (resolved) {
                     scheduler.cancelRepeat(medication, time, scheduledAt)
                 } else {

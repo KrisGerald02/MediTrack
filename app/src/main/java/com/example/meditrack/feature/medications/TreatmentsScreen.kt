@@ -30,6 +30,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -44,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.meditrack.core.data.MedicationEntity
+import com.example.meditrack.core.data.MedicationRepository
 import com.example.meditrack.core.presentation.MediTrackViewModel
 import com.example.meditrack.core.ui.components.EmptyState
 import com.example.meditrack.core.ui.components.MedicationAvatar
@@ -58,8 +61,10 @@ fun TreatmentsScreen(
     onAlerts: () -> Unit
 ) {
     val medications by viewModel.medications.collectAsState()
-    val alertCount = medications.count { it.active && it.stock <= it.lowStockThreshold }
+    val alertCount = medications.count { it.hasUnacknowledgedStockAlert }
     var pendingDelete by remember { mutableStateOf<MedicationEntity?>(null) }
+    var showActive by remember { mutableStateOf(true) }
+    val visibleMedications = medications.filter { it.active == showActive }
 
     Scaffold(
         floatingActionButton = {
@@ -83,18 +88,45 @@ fun TreatmentsScreen(
                     }
                 }
             }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (showActive) {
+                        Button(onClick = { showActive = true }, modifier = Modifier.weight(1f)) {
+                            Text("Activos (${medications.count { it.active }})")
+                        }
+                        OutlinedButton(onClick = { showActive = false }, modifier = Modifier.weight(1f)) {
+                            Text("Inactivos (${medications.count { !it.active }})")
+                        }
+                    } else {
+                        OutlinedButton(onClick = { showActive = true }, modifier = Modifier.weight(1f)) {
+                            Text("Activos (${medications.count { it.active }})")
+                        }
+                        Button(onClick = { showActive = false }, modifier = Modifier.weight(1f)) {
+                            Text("Inactivos (${medications.count { !it.active }})")
+                        }
+                    }
+                }
+            }
             if (medications.isEmpty()) {
-                item { EmptyState("Aún no hay tratamientos", "Registra el nombre, dosis, horarios e inventario de tu medicamento.") }
+                item { EmptyState("Aún no hay tratamientos", "Registra el nombre, cantidad, horarios e inventario de tu medicamento.") }
+            } else if (visibleMedications.isEmpty()) {
+                item {
+                    EmptyState(
+                        if (showActive) "No hay tratamientos activos" else "No hay tratamientos inactivos",
+                        if (showActive) "Puedes reactivar uno desde la sección Inactivos o crear un tratamiento nuevo."
+                        else "Los tratamientos que canceles aparecerán aquí con su historial conservado."
+                    )
+                }
             } else {
                 item {
                     Text(
-                        "${medications.count { it.active }} activos · ${medications.count { it.stock <= it.lowStockThreshold }} con stock bajo",
+                        if (showActive) "${visibleMedications.size} activos" else "${visibleMedications.size} inactivos",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 listOf("MEDICINE" to "Medicinas", "SUPPLEMENT" to "Suplementos").forEach { (category, title) ->
-                    val grouped = medications.filter { it.category == category }
+                    val grouped = visibleMedications.filter { it.category == category }
                     if (grouped.isNotEmpty()) {
                         item(key = "header-$category") { CategoryDivider(title) }
                         items(grouped, key = { it.id }) { medication ->
@@ -145,11 +177,21 @@ private fun MedicationCard(
                         Text(medication.name, style = MaterialTheme.typography.titleLarge)
                         if (!medication.active) {
                             Spacer(Modifier.width(8.dp))
-                            Text("Pausado", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Inactivo", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Text(medication.displayDose, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(medication.times.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(medication.scheduleDescription, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    medication.finiteTreatmentPeriodLabel?.let { period ->
+                        Text(period, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                    if (!medication.active && medication.deactivatedAt > 0) {
+                        Text(
+                            "Cancelado el ${MedicationRepository.formatDate(medication.deactivatedAt)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
                 IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Editar") }
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error) }

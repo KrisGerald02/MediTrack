@@ -31,7 +31,7 @@ class DoseActionReceiver : BroadcastReceiver() {
         val app = context.applicationContext as MediTrackApplication
         CoroutineScope(Dispatchers.IO).launch {
             app.repository.getMedication(medicationId)?.let { medication ->
-                app.repository.recordDose(
+                val recorded = app.repository.recordDose(
                     DailyDose(
                         medication = medication,
                         scheduledAt = scheduledAt,
@@ -40,10 +40,16 @@ class DoseActionReceiver : BroadcastReceiver() {
                     ),
                     status
                 )
-                if (status == DoseStatus.POSTPONED) {
+                if (!recorded) {
+                    result.finish()
+                    return@launch
+                } else if (status == DoseStatus.POSTPONED) {
                     MedicationAlarmScheduler(context).scheduleRepeat(medication, time, scheduledAt)
                 } else {
                     MedicationAlarmScheduler(context).cancelRepeat(medication, time, scheduledAt)
+                    app.repository.getMedication(medicationId)?.takeIf { it.stock <= 0 }?.let {
+                        MedicationAlarmScheduler(context).cancel(it)
+                    }
                 }
             }
             result.finish()

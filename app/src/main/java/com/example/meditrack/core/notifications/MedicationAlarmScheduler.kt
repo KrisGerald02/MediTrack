@@ -12,6 +12,7 @@ class MedicationAlarmScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
     fun schedule(medication: MedicationEntity) {
+        if (!medication.active || medication.stock <= 0) return
         medication.times.forEach { time -> scheduleTime(medication, time) }
     }
 
@@ -22,10 +23,22 @@ class MedicationAlarmScheduler(private val context: Context) {
     }
 
     fun scheduleTime(medication: MedicationEntity, time: String, customAt: Long? = null) {
-        var triggerAt = customAt ?: MedicationRepository.timeOnDay(
-            MedicationRepository.startOfDay(System.currentTimeMillis()), time
-        ) ?: return
-        if (triggerAt <= System.currentTimeMillis()) triggerAt += MedicationRepository.DAY_MS
+        if (!medication.active || medication.stock <= 0) return
+        val now = System.currentTimeMillis()
+        var day = maxOf(
+            MedicationRepository.startOfDay(now),
+            medication.normalizedTreatmentStartDate
+        )
+        var triggerAt = customAt ?: MedicationRepository.timeOnDay(day, time) ?: return
+        if (triggerAt <= now) {
+            val nextDay = java.util.Calendar.getInstance().apply {
+                timeInMillis = day
+                add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            day = nextDay.timeInMillis
+            triggerAt = MedicationRepository.timeOnDay(day, time) ?: return
+        }
+        if (!medication.isTreatmentDay(triggerAt)) return
 
         val operation = pendingIntent(medication, time, triggerAt, false)
         setAlarm(triggerAt, operation)
@@ -34,11 +47,15 @@ class MedicationAlarmScheduler(private val context: Context) {
     fun scheduleRepeat(
         medication: MedicationEntity,
         time: String,
-        scheduledAt: Long,
-        delayMillis: Long = FIVE_MINUTES
+        scheduledAt: Long
     ) {
-        val triggerAt = System.currentTimeMillis() + delayMillis
-        setAlarm(triggerAt, pendingIntent(medication, time, scheduledAt, true))
+        if (!medication.active || medication.stock <= 0 || !medication.isTreatmentDay(scheduledAt)) return
+        val triggerAt = System.currentTimeMillis() + medication.reminderIntervalMillis
+        if (triggerAt >= scheduledAt + MedicationRepository.DAY_MS) return
+        val operation = pendingIntent(medication, time, scheduledAt, true)
+        // Posponer siempre reinicia el contador desde el momento de la acción.
+        alarmManager.cancel(operation)
+        setAlarm(triggerAt, operation)
     }
 
     fun cancelRepeat(medication: MedicationEntity, time: String, scheduledAt: Long) {
@@ -87,6 +104,5 @@ class MedicationAlarmScheduler(private val context: Context) {
         const val EXTRA_TIME = "time"
         const val EXTRA_SCHEDULED_AT = "scheduled_at"
         const val EXTRA_IS_REPEAT = "is_repeat"
-        const val FIVE_MINUTES = 5 * 60_000L
     }
 }

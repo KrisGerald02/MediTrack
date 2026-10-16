@@ -16,14 +16,16 @@ El proyecto combina **salud, organización y accesibilidad** con una interfaz ad
 <a id="funciones"></a>
 ## 🩺 ¿Qué puedes encontrar?
 
-- **Plan diario:** horarios, dosis y estado de cada toma con acciones para marcarla como tomada o recordarla en cinco minutos.
-- **Tratamientos personalizados:** medicinas o suplementos, cantidad por dosis, unidad de medida, varias horas e instrucciones.
-- **Recordatorios persistentes:** nuevas notificaciones cada cinco minutos mientras una dosis continúe pendiente.
-- **Inventario inteligente:** existencias por tratamiento, reposición acumulativa y niveles visuales verde, amarillo y rojo.
-- **Alertas de stock:** centro de alertas accesible desde la campana de Tratamientos.
-- **Actividad e historial:** dashboard mensual, cumplimiento, tomas realizadas y pospuestas, con filtros por tratamiento y rango de fechas.
+- **Plan diario:** tomas de hoy y atrasadas por menos de 24 horas, con bloqueo anticipado y estado “No tomada” al vencer.
+- **Tratamientos personalizados:** medicinas o suplementos, cantidad de pastillas por toma, horas específicas o frecuencia como “cada 4 horas”, e instrucciones.
+- **Duración controlada:** tratamientos permanentes o por cantidad de días, con fecha inicial, fecha final calculada y suspensión automática al concluir.
+- **Recordatorios persistentes:** cada tratamiento permite configurar cuántos minutos deben pasar antes de repetir la notificación mientras la dosis continúe pendiente.
+- **Inventario inteligente:** existencias por tratamiento, reposición acumulativa, pausa de alarmas al llegar a cero y registro de períodos sin stock.
+- **Alertas de stock:** avisos de nivel medio, bajo o agotado que pueden marcarse como recibidos.
+- **Actividad e historial:** dashboard mensual, tomas realizadas, pospuestas y no tomadas, además de períodos sin existencias.
 - **Perfil personalizable:** saludo según la hora, nombre del usuario y selección de uso durante el onboarding.
-- **Temas de color:** paletas rosada, morada, azul y verde aplicadas a toda la interfaz.
+- **Temas de color:** siete paletas generales y siete colores independientes para identificar tratamientos.
+- **Tratamientos inactivos:** cancelar alarmas sin borrar el tratamiento ni su historial, con vistas separadas de activos e inactivos.
 - **Diseño adaptable:** navegación optimizada para celulares y pantallas amplias, compatible con tamaños de letra grandes.
 
 <a id="herramientas"></a>

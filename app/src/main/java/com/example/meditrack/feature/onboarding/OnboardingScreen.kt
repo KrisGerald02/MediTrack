@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -38,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,7 +71,7 @@ private val pages = listOf(
     ),
     OnboardingPage(
         "Conoce tu progreso",
-        "Consulta el cumplimiento, las tomas pospuestas u omitidas y el estado de tus existencias.",
+        "Consulta el cumplimiento, las tomas pospuestas y el estado de tus existencias.",
         Icons.Default.Insights
     )
 )
@@ -103,7 +106,12 @@ private fun OnboardingFlow(onComplete: (String, String) -> Unit) {
     var role by rememberSaveable { mutableStateOf("CHRONIC") }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -116,7 +124,15 @@ private fun OnboardingFlow(onComplete: (String, String) -> Unit) {
                 )
             }
         }
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            if (step < pages.size) {
+                Button(onClick = { step = pages.size }) {
+                    Text("Omitir")
+                }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
         AnimatedContent(
             targetState = step,
             modifier = Modifier.weight(1f),
@@ -152,7 +168,10 @@ private fun OnboardingFlow(onComplete: (String, String) -> Unit) {
                 ProfileSetup(name, { name = it }, role, { role = it })
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             if (step > 0) {
                 OutlinedButton(onClick = { step-- }, modifier = Modifier.weight(1f)) { Text("Atrás") }
             }

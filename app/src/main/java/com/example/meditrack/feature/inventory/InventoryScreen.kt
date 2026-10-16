@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.meditrack.core.data.MedicationEntity
+import com.example.meditrack.core.data.StockLevel
 import com.example.meditrack.core.presentation.MediTrackViewModel
 import com.example.meditrack.core.ui.components.EmptyState
 import com.example.meditrack.core.ui.components.MedicationAvatar
@@ -48,7 +49,7 @@ import com.example.meditrack.core.ui.components.softScrollEdges
 @Composable
 fun InventoryScreen(viewModel: MediTrackViewModel) {
     val medications by viewModel.medications.collectAsState()
-    val lowStock = medications.count { it.stock <= it.lowStockThreshold }
+    val stockAlerts = medications.count { it.active && it.stockLevel != StockLevel.GOOD }
     var pendingInventory by remember { mutableStateOf<MedicationEntity?>(null) }
 
     Scaffold { padding ->
@@ -59,7 +60,7 @@ fun InventoryScreen(viewModel: MediTrackViewModel) {
         ) {
             item { Text("Inventario", style = MaterialTheme.typography.headlineMedium) }
             item {
-                InventorySummary(lowStock = lowStock, total = medications.size)
+                InventorySummary(stockAlerts = stockAlerts, total = medications.size)
             }
             if (medications.isEmpty()) {
                 item { EmptyState("Inventario vacío", "Agrega un tratamiento para comenzar a controlar tus existencias.") }
@@ -90,7 +91,7 @@ fun InventoryScreen(viewModel: MediTrackViewModel) {
 }
 
 @Composable
-private fun InventorySummary(lowStock: Int, total: Int) {
+private fun InventorySummary(stockAlerts: Int, total: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -100,13 +101,13 @@ private fun InventorySummary(lowStock: Int, total: Int) {
             Icon(
                 Icons.Default.Inventory2,
                 null,
-                tint = if (lowStock > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                tint = if (stockAlerts > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(14.dp))
             Column {
-                Text("$lowStock de $total", style = MaterialTheme.typography.headlineMedium)
+                Text("$stockAlerts de $total", style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    "Tratamientos con stock bajo",
+                    "Tratamientos con inventario medio, bajo o agotado",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -117,7 +118,6 @@ private fun InventorySummary(lowStock: Int, total: Int) {
 
 @Composable
 private fun InventoryItem(medication: MedicationEntity, onRefill: () -> Unit) {
-    val isLow = medication.stock <= medication.lowStockThreshold
     val levelColor = inventoryLevelColor(medication)
     val visualCapacity = maxOf(medication.stock, medication.lowStockThreshold * 3, 1)
     Card(
@@ -157,7 +157,7 @@ private fun InventoryItem(medication: MedicationEntity, onRefill: () -> Unit) {
 }
 
 private fun inventoryLevelColor(medication: MedicationEntity): Color = when {
-    medication.stock <= medication.lowStockThreshold -> Color(0xFFE53935)
-    medication.stock <= medication.lowStockThreshold * 2 -> Color(0xFFF9A825)
+    medication.stockLevel == StockLevel.OUT || medication.stockLevel == StockLevel.LOW -> Color(0xFFE53935)
+    medication.stockLevel == StockLevel.MEDIUM -> Color(0xFFF9A825)
     else -> Color(0xFF2EAD62)
 }

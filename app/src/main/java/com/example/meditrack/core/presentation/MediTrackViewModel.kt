@@ -9,6 +9,7 @@ import com.example.meditrack.core.data.DoseStatus
 import com.example.meditrack.core.data.HistoryItem
 import com.example.meditrack.core.data.MedicationEntity
 import com.example.meditrack.core.data.UserProfile
+import com.example.meditrack.core.data.StockOutageHistoryItem
 import com.example.meditrack.core.notifications.MedicationAlarmScheduler
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,13 +32,22 @@ class MediTrackViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val history: StateFlow<List<HistoryItem>> = repository.history
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val outageHistory: StateFlow<List<StockOutageHistoryItem>> = repository.outageHistory
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        reconcileMissedDoses()
+    }
 
     fun saveMedication(medication: MedicationEntity, onSaved: () -> Unit) {
         viewModelScope.launch {
             val previous = if (medication.id != 0L) repository.getMedication(medication.id) else null
             previous?.let(scheduler::cancel)
             val id = repository.save(medication)
-            repository.getMedication(id)?.let(scheduler::schedule)
+            repository.getMedication(id)?.let { saved ->
+                if (saved.active && saved.stock > 0) scheduler.schedule(saved)
+                else cancelVisibleDoseNotifications(saved.id)
+            }
             onSaved()
         }
     }
@@ -45,26 +55,61 @@ class MediTrackViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteMedication(medication: MedicationEntity) {
         viewModelScope.launch {
             scheduler.cancel(medication)
+            cancelVisibleDoseNotifications(medication.id)
             repository.delete(medication)
         }
     }
 
     fun setDoseStatus(dose: DailyDose, status: DoseStatus) {
         viewModelScope.launch {
-            repository.recordDose(dose, status)
+            val recorded = repository.recordDose(dose, status)
+            if (!recorded) return@launch
             if (status == DoseStatus.POSTPONED) {
                 scheduler.scheduleRepeat(dose.medication, dose.time, dose.scheduledAt)
-            } else if (status == DoseStatus.TAKEN || status == DoseStatus.SKIPPED) {
+            } else if (status == DoseStatus.TAKEN || status == DoseStatus.SKIPPED || status == DoseStatus.MISSED) {
                 scheduler.cancelRepeat(dose.medication, dose.time, dose.scheduledAt)
                 NotificationManagerCompat.from(getApplication()).cancel(
                     "${dose.medication.id}-${dose.scheduledAt}".hashCode()
                 )
+                if (status == DoseStatus.TAKEN) {
+                    repository.getMedication(dose.medication.id)?.takeIf { it.stock <= 0 }?.let {
+                        scheduler.cancel(it)
+                        cancelVisibleDoseNotifications(it.id)
+                    }
+                }
             }
         }
     }
 
     fun refill(medicationId: Long, amount: Int = 10) {
-        viewModelScope.launch { repository.refill(medicationId, amount) }
+        viewModelScope.launch {
+            repository.refill(medicationId, amount)?.takeIf { it.active && it.stock > 0 }?.let { medication ->
+                scheduler.schedule(medication)
+                val now = System.currentTimeMillis()
+                todayDoses.value.filter { dose ->
+                    dose.medication.id == medicationId &&
+                        (dose.status == DoseStatus.PENDING || dose.status == DoseStatus.POSTPONED) &&
+                        dose.scheduledAt <= now && !dose.isExpiredAt(now)
+                }.forEach { dose ->
+                    scheduler.scheduleRepeat(medication, dose.time, dose.scheduledAt)
+                }
+            }
+        }
+    }
+
+    fun acknowledgeStockAlert(medication: MedicationEntity) {
+        viewModelScope.launch { repository.acknowledgeStockAlert(medication) }
+    }
+
+    fun reconcileMissedDoses() {
+        viewModelScope.launch { repository.reconcileMissedDoses() }
+    }
+
+    private fun cancelVisibleDoseNotifications(medicationId: Long) {
+        val manager = NotificationManagerCompat.from(getApplication())
+        todayDoses.value.filter { it.medication.id == medicationId }.forEach { dose ->
+            manager.cancel("$medicationId-${dose.scheduledAt}".hashCode())
+        }
     }
 
     fun completeOnboarding(name: String, role: String) {

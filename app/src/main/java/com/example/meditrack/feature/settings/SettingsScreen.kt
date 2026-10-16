@@ -50,7 +50,10 @@ private val themeOptions = listOf(
     ThemeOption("PINK", "Rosado", Color(0xFFE84393)),
     ThemeOption("PURPLE", "Morado", Color(0xFF7C3AED)),
     ThemeOption("BLUE", "Azul", Color(0xFF2563EB)),
-    ThemeOption("GREEN", "Verde", Color(0xFF168A62))
+    ThemeOption("GREEN", "Verde", Color(0xFF168A62)),
+    ThemeOption("RED", "Rojo", Color(0xFFDC2626)),
+    ThemeOption("ORANGE", "Naranja", Color(0xFFEA580C)),
+    ThemeOption("TEAL", "Turquesa", Color(0xFF0F766E))
 )
 
 @Composable

@@ -43,9 +43,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.example.meditrack.core.data.DoseStatus
 
 @Composable
-fun medicationColors(): List<Color> = MaterialTheme.colorScheme.run {
-    listOf(primary, secondary, tertiary, primary.copy(alpha = .72f), secondary.copy(alpha = .72f), tertiary.copy(alpha = .72f))
-}
+fun medicationColors(): List<Color> = listOf(
+    Color(0xFFE84393),
+    Color(0xFF7C3AED),
+    Color(0xFF2563EB),
+    Color(0xFF168A62),
+    Color(0xFFDC2626),
+    Color(0xFFEA580C),
+    Color(0xFF0F9F9A)
+)
 
 /** Suaviza la entrada y salida del contenido desplazable para evitar cortes bruscos. */
 fun Modifier.softScrollEdges(color: Color, edgeHeight: Dp = 18.dp): Modifier = drawWithContent {
@@ -92,6 +98,7 @@ fun StatusPill(status: DoseStatus) {
         DoseStatus.TAKEN -> "Tomada" to MaterialTheme.colorScheme.primary
         DoseStatus.SKIPPED -> "Pospuesta" to MaterialTheme.colorScheme.secondary
         DoseStatus.POSTPONED -> "Pospuesta" to MaterialTheme.colorScheme.secondary
+        DoseStatus.MISSED -> "No tomada" to MaterialTheme.colorScheme.error
     }
     Text(
         text = label,

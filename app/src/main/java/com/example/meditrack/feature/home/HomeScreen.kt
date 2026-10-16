@@ -43,8 +43,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
 import com.example.meditrack.core.data.DailyDose
 import com.example.meditrack.core.data.DoseStatus
+import com.example.meditrack.core.data.MedicationRepository
 import com.example.meditrack.core.presentation.MediTrackViewModel
 import com.example.meditrack.core.ui.components.EmptyState
 import com.example.meditrack.core.ui.components.MedicationAvatar
@@ -63,14 +68,32 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.Calendar
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(viewModel: MediTrackViewModel, onSettings: () -> Unit) {
     val doses by viewModel.todayDoses.collectAsState()
     val medications by viewModel.medications.collectAsState()
     val profile by viewModel.profile.collectAsState()
-    val taken = doses.count { it.status == DoseStatus.TAKEN }
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val visibleDoses = doses.filterNot { it.isExpiredAt(currentTime) }
+    val todayStart = MedicationRepository.startOfDay(currentTime)
+    val todayOnly = visibleDoses.filter { it.scheduledAt >= todayStart }
+    val taken = todayOnly.count { it.status == DoseStatus.TAKEN }
     val lowStock = medications.count { it.active && it.stock <= it.lowStockThreshold }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            viewModel.reconcileMissedDoses()
+            delay(60_000)
+        }
+    }
 
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     val greeting = when (hour) {
@@ -100,24 +123,28 @@ fun HomeScreen(viewModel: MediTrackViewModel, onSettings: () -> Unit) {
                 item {
                     if (wide) {
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            AdherenceCard(taken, doses.size, Modifier.weight(1f))
-                            NextDoseCard(doses.firstOrNull { it.status == DoseStatus.PENDING }, Modifier.weight(1f))
+                            AdherenceCard(taken, todayOnly.size, Modifier.weight(1f))
+                            NextDoseCard(visibleDoses.firstOrNull { it.status == DoseStatus.PENDING && it.medication.stock > 0 }, Modifier.weight(1f))
                             InventoryCard(lowStock, Modifier.weight(1f))
                         }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            AdherenceCard(taken, doses.size, Modifier.fillMaxWidth())
-                            NextDoseCard(doses.firstOrNull { it.status == DoseStatus.PENDING }, Modifier.fillMaxWidth())
+                            AdherenceCard(taken, todayOnly.size, Modifier.fillMaxWidth())
+                            NextDoseCard(visibleDoses.firstOrNull { it.status == DoseStatus.PENDING && it.medication.stock > 0 }, Modifier.fillMaxWidth())
                             if (lowStock > 0) InventoryCard(lowStock, Modifier.fillMaxWidth())
                         }
                     }
                 }
                 item { SectionHeader("Plan de hoy") }
-                if (doses.isEmpty()) {
+                if (visibleDoses.isEmpty()) {
                     item { EmptyState("Tu día está libre", "Ve a Tratamientos para agregar tu primer medicamento o suplemento.") }
                 } else {
-                    items(doses, key = { "${it.medication.id}-${it.scheduledAt}" }) { dose ->
-                        DoseCard(dose = dose, onStatus = { viewModel.setDoseStatus(dose, it) })
+                    items(visibleDoses, key = { "${it.medication.id}-${it.scheduledAt}" }) { dose ->
+                        DoseCard(
+                            dose = dose,
+                            currentTime = currentTime,
+                            onStatus = { viewModel.setDoseStatus(dose, it) }
+                        )
                     }
                 }
             }
@@ -168,8 +195,15 @@ private fun InventoryCard(lowStock: Int, modifier: Modifier) {
 }
 
 @Composable
-private fun DoseCard(dose: DailyDose, onStatus: (DoseStatus) -> Unit) {
+private fun DoseCard(dose: DailyDose, currentTime: Long, onStatus: (DoseStatus) -> Unit) {
     val largeText = LocalDensity.current.fontScale >= 1.2f
+    val canTake = dose.canBeTakenAt(currentTime)
+    val availableTime = remember(dose.availableAt) {
+        SimpleDateFormat("HH:mm", Locale("es", "NI")).format(Date(dose.availableAt))
+    }
+    val timeLabel = if (dose.scheduledAt < MedicationRepository.startOfDay(currentTime)) {
+        "Ayer · ${dose.time}"
+    } else dose.time
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
@@ -191,7 +225,7 @@ private fun DoseCard(dose: DailyDose, onStatus: (DoseStatus) -> Unit) {
                         }
                         Column(Modifier.padding(start = 12.dp)) {
                             Text("Horario", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text(dose.time, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text(timeLabel, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                     StatusPill(dose.status)
@@ -211,7 +245,7 @@ private fun DoseCard(dose: DailyDose, onStatus: (DoseStatus) -> Unit) {
                         }
                         Column(Modifier.padding(start = 12.dp)) {
                             Text("Horario", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text(dose.time, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text(timeLabel, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                     StatusPill(dose.status)
@@ -228,6 +262,14 @@ private fun DoseCard(dose: DailyDose, onStatus: (DoseStatus) -> Unit) {
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        dose.medication.finiteTreatmentPeriodLabel?.let { period ->
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Tratamiento: $period",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
                 if (dose.medication.instructions.isNotBlank()) {
@@ -245,19 +287,35 @@ private fun DoseCard(dose: DailyDose, onStatus: (DoseStatus) -> Unit) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Button(
                         onClick = { onStatus(DoseStatus.TAKEN) },
+                        enabled = canTake,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)
                     ) {
                         Icon(Icons.Default.CheckCircle, null)
                         Spacer(Modifier.width(8.dp))
                         Text("Marcar como tomada")
                     }
+                    if (!canTake) {
+                        Text(
+                            if (dose.medication.stock <= 0) {
+                                "Sin existencias. Agrega pastillas en Inventario para reactivar esta toma y sus alarmas."
+                            } else if (dose.status == DoseStatus.POSTPONED) {
+                                "Disponible nuevamente a las $availableTime"
+                            } else {
+                                "Disponible a partir de las ${dose.time}"
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     FilledTonalButton(
                         onClick = { onStatus(DoseStatus.POSTPONED) },
+                        enabled = canTake,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
                     ) {
                         Icon(Icons.Default.MoreTime, null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Recordar en 5 minutos")
+                        Text("Recordar en ${dose.medication.reminderIntervalMinutes} minutos")
                     }
                 }
             }

@@ -8,7 +8,9 @@ import com.example.meditrack.core.notifications.NotificationHelper
 
 class MediTrackApplication : Application() {
     val database by lazy { MediTrackDatabase.getInstance(this) }
-    val repository by lazy { MedicationRepository(database.medicationDao(), database.doseLogDao()) }
+    val repository by lazy {
+        MedicationRepository(database.medicationDao(), database.doseLogDao(), database.stockOutageDao())
+    }
     val userPreferences by lazy { UserPreferences(this) }
 
     override fun onCreate() {

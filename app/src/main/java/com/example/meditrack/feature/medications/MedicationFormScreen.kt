@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Schedule
@@ -33,8 +32,8 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,7 +68,9 @@ import com.example.meditrack.core.presentation.MediTrackViewModel
 import com.example.meditrack.core.ui.components.softScrollEdges
 import com.example.meditrack.core.ui.components.medicationColors
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import java.text.SimpleDateFormat
 
 @Composable
 fun MedicationFormScreen(
@@ -77,13 +79,10 @@ fun MedicationFormScreen(
     onBack: () -> Unit
 ) {
     val medications by viewModel.medications.collectAsState()
-    val availableUnits by viewModel.units.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val availableMedicationColors = medicationColors()
     var initialized by remember { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }
-    var amount by rememberSaveable { mutableStateOf("") }
-    var unit by rememberSaveable { mutableStateOf("mg") }
     var pillsPerDose by rememberSaveable { mutableStateOf("1") }
     var category by rememberSaveable {
         mutableStateOf(
@@ -93,24 +92,35 @@ fun MedicationFormScreen(
     }
     var instructions by rememberSaveable { mutableStateOf("") }
     var timesCsv by rememberSaveable { mutableStateOf("08:00,20:00") }
+    var reminderIntervalMinutes by rememberSaveable { mutableStateOf("5") }
+    var useDoseInterval by rememberSaveable { mutableStateOf(false) }
+    var doseIntervalHours by rememberSaveable { mutableStateOf("4") }
+    var treatmentStartDate by rememberSaveable {
+        mutableStateOf(com.example.meditrack.core.data.MedicationRepository.startOfDay(System.currentTimeMillis()))
+    }
+    var limitedDuration by rememberSaveable { mutableStateOf(false) }
+    var treatmentDurationDays by rememberSaveable { mutableStateOf("7") }
     var stock by rememberSaveable { mutableStateOf("30") }
     var colorIndex by rememberSaveable { mutableIntStateOf(0) }
     var active by rememberSaveable { mutableStateOf(true) }
     var attempted by rememberSaveable { mutableStateOf(false) }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
-    var showUnitMenu by rememberSaveable { mutableStateOf(false) }
-    var showCustomUnitDialog by rememberSaveable { mutableStateOf(false) }
+    var showStartDatePicker by rememberSaveable { mutableStateOf(false) }
 
     val existing = medications.firstOrNull { it.id == medicationId }
     LaunchedEffect(existing, medicationId) {
         if (!initialized && medicationId != 0L && existing != null) {
             name = existing.name
-            amount = existing.amount.ifBlank { existing.dose.substringBefore(" ").filter { it.isDigit() || it == '.' } }
-            unit = existing.unit.ifBlank { "mg" }
             pillsPerDose = existing.pillsPerDose.toString()
             category = existing.category
             instructions = existing.instructions
             timesCsv = existing.timesCsv
+            reminderIntervalMinutes = existing.reminderIntervalMinutes.toString()
+            useDoseInterval = existing.doseIntervalHours > 0
+            doseIntervalHours = (existing.doseIntervalHours.takeIf { it > 0 } ?: 4).toString()
+            treatmentStartDate = existing.normalizedTreatmentStartDate
+            limitedDuration = existing.treatmentDurationDays > 0
+            treatmentDurationDays = (existing.treatmentDurationDays.takeIf { it > 0 } ?: 7).toString()
             stock = existing.stock.toString()
             colorIndex = existing.colorIndex
             active = existing.active
@@ -119,9 +129,13 @@ fun MedicationFormScreen(
     }
 
     val validTimes = normalizeTimes(timesCsv)
-    val isValid = name.isNotBlank() && amount.toDoubleOrNull() != null &&
-        pillsPerDose.toIntOrNull()?.let { it > 0 } == true && validTimes.isNotEmpty() &&
-        stock.toIntOrNull() != null
+    val intervalHours = doseIntervalHours.toIntOrNull()
+    val validDoseInterval = !useDoseInterval || intervalHours?.let { it in supportedDoseIntervals } == true
+    val validDuration = !limitedDuration || treatmentDurationDays.toIntOrNull()?.let { it in 1..3650 } == true
+    val isValid = name.isNotBlank() && pillsPerDose.toIntOrNull()?.let { it > 0 } == true && validTimes.isNotEmpty() &&
+        stock.toIntOrNull() != null &&
+        reminderIntervalMinutes.toIntOrNull()?.let { it in 1..1440 } == true &&
+        validDoseInterval && validDuration
 
     Scaffold(
         topBar = {
@@ -169,37 +183,6 @@ fun MedicationFormScreen(
                 Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Dosis", style = MaterialTheme.typography.titleLarge)
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                            OutlinedTextField(
-                                value = amount,
-                                onValueChange = { value -> amount = value.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.') },
-                                label = { Text("Cantidad") },
-                                placeholder = { Text("500") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                isError = attempted && amount.toDoubleOrNull() == null,
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
-                            Box(Modifier.weight(1f)) {
-                                OutlinedButton(
-                                    onClick = { showUnitMenu = true },
-                                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                                ) { Text("Medida: $unit") }
-                                DropdownMenu(expanded = showUnitMenu, onDismissRequest = { showUnitMenu = false }) {
-                                    availableUnits.forEach { item ->
-                                        DropdownMenuItem(
-                                            text = { Text(item) },
-                                            onClick = { unit = item; showUnitMenu = false }
-                                        )
-                                    }
-                                    DropdownMenuItem(
-                                        text = { Text("Añadir medida…") },
-                                        leadingIcon = { Icon(Icons.Default.Add, null) },
-                                        onClick = { showUnitMenu = false; showCustomUnitDialog = true }
-                                    )
-                                }
-                            }
-                        }
                         OutlinedTextField(
                             value = pillsPerDose,
                             onValueChange = { pillsPerDose = it.filter(Char::isDigit) },
@@ -217,6 +200,35 @@ fun MedicationFormScreen(
                 Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("Horario y recordatorios", style = MaterialTheme.typography.titleLarge)
+                        Text("Frecuencia del tratamiento", style = MaterialTheme.typography.titleMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FilterChip(
+                                selected = !useDoseInterval,
+                                onClick = { useDoseInterval = false },
+                                label = { Text("Horarios") }
+                            )
+                            FilterChip(
+                                selected = useDoseInterval,
+                                onClick = {
+                                    useDoseInterval = true
+                                    timesCsv = validTimes.firstOrNull() ?: "08:00"
+                                },
+                                label = { Text("Intervalo") }
+                            )
+                        }
+                        if (useDoseInterval) {
+                            OutlinedTextField(
+                                value = doseIntervalHours,
+                                onValueChange = { doseIntervalHours = it.filter(Char::isDigit).take(2) },
+                                label = { Text("Repetir tratamiento cada (horas)") },
+                                placeholder = { Text("Ej. 4") },
+                                supportingText = { Text("Opciones: 1, 2, 3, 4, 6, 8, 12 o 24 horas") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                isError = attempted && !validDoseInterval,
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
                         if (validTimes.isEmpty()) {
                             Text(
                                 "Todavía no has agregado horarios.",
@@ -230,7 +242,7 @@ fun MedicationFormScreen(
                                         onClick = {
                                             timesCsv = validTimes.filterNot { it == time }.joinToString(",")
                                         },
-                                        label = { Text(time) },
+                                        label = { Text(if (useDoseInterval) "Inicia $time" else time) },
                                         leadingIcon = { Icon(Icons.Default.Schedule, null, Modifier.size(18.dp)) },
                                         trailingIcon = { Icon(Icons.Default.Close, "Eliminar $time", Modifier.size(18.dp)) }
                                     )
@@ -240,9 +252,75 @@ fun MedicationFormScreen(
                         OutlinedButton(onClick = { showTimePicker = true }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.Schedule, null)
                             Spacer(Modifier.size(8.dp))
-                            Text("Agregar horario")
+                            Text(if (useDoseInterval) "Seleccionar hora inicial" else "Agregar horario")
                         }
-                        Text("MediTrack enviará recordatorios locales aun sin conexión.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (useDoseInterval && validDoseInterval && validTimes.isNotEmpty()) {
+                            val preview = MedicationEntity(
+                                name = "",
+                                dose = "",
+                                doseIntervalHours = intervalHours ?: 0,
+                                timesCsv = validTimes.first(),
+                                stock = 0,
+                                lowStockThreshold = 0
+                            ).times.joinToString(" · ")
+                            Text(
+                                "Horarios calculados: $preview",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        OutlinedTextField(
+                            value = reminderIntervalMinutes,
+                            onValueChange = { reminderIntervalMinutes = it.filter(Char::isDigit).take(4) },
+                            label = { Text("Repetir alarma cada (minutos)") },
+                            supportingText = { Text("Se repetirá mientras no marques la dosis como tomada") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            isError = attempted && reminderIntervalMinutes.toIntOrNull()?.let { it in 1..1440 } != true,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+            item {
+                Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Duración del tratamiento", style = MaterialTheme.typography.titleLarge)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FilterChip(
+                                selected = !limitedDuration,
+                                onClick = { limitedDuration = false },
+                                label = { Text("Siempre") }
+                            )
+                            FilterChip(
+                                selected = limitedDuration,
+                                onClick = { limitedDuration = true },
+                                label = { Text("Por días") }
+                            )
+                        }
+                        OutlinedButton(onClick = { showStartDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Inicia: ${formatTreatmentDate(treatmentStartDate)}")
+                        }
+                        if (limitedDuration) {
+                            OutlinedTextField(
+                                value = treatmentDurationDays,
+                                onValueChange = { treatmentDurationDays = it.filter(Char::isDigit).take(4) },
+                                label = { Text("Duración en días") },
+                                placeholder = { Text("Ej. 7") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                isError = attempted && !validDuration,
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            val duration = treatmentDurationDays.toIntOrNull()
+                            if (duration != null && duration > 0) {
+                                Text(
+                                    "Resumen: inicia ${formatTreatmentDate(treatmentStartDate)} y finaliza ${formatTreatmentDate(calculateTreatmentEnd(treatmentStartDate, duration))}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -277,8 +355,16 @@ fun MedicationFormScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("Tratamiento activo", style = MaterialTheme.typography.titleMedium)
-                                Text("Incluye las dosis en tu agenda", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    if (active) "Tratamiento activo" else "Tratamiento cancelado",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    if (active) "Incluye las dosis en tu agenda y mantiene sus alarmas."
+                                    else "Cancela las alarmas, pero conserva el tratamiento y todo su historial.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             Switch(checked = active, onCheckedChange = { active = it })
                         }
@@ -294,13 +380,17 @@ fun MedicationFormScreen(
                                 MedicationEntity(
                                     id = medicationId,
                                     name = name.trim(),
-                                    dose = "${pillsPerDose.toInt()} pastilla(s) · ${amount.trim()} $unit",
-                                    amount = amount.trim(),
-                                    unit = unit,
+                                    dose = if (pillsPerDose.toInt() == 1) "1 pastilla" else "${pillsPerDose.toInt()} pastillas",
+                                    amount = "",
+                                    unit = "",
                                     pillsPerDose = pillsPerDose.toInt(),
                                     category = category,
+                                    reminderIntervalMinutes = reminderIntervalMinutes.toInt(),
+                                    doseIntervalHours = if (useDoseInterval) intervalHours ?: 0 else 0,
+                                    treatmentStartDate = treatmentStartDate,
+                                    treatmentDurationDays = if (limitedDuration) treatmentDurationDays.toInt() else 0,
                                     instructions = instructions.trim(),
-                                    timesCsv = validTimes.joinToString(","),
+                                    timesCsv = if (useDoseInterval) validTimes.first() else validTimes.joinToString(","),
                                     stock = stock.toInt(),
                                     lowStockThreshold = maxOf(1, stock.toInt() / 5),
                                     colorIndex = colorIndex,
@@ -326,20 +416,28 @@ fun MedicationFormScreen(
         MedicationTimePickerDialog(
             onDismiss = { showTimePicker = false },
             onConfirm = { selected ->
-                timesCsv = (validTimes + selected).distinct().sorted().joinToString(",")
+                timesCsv = if (useDoseInterval) selected
+                else (validTimes + selected).distinct().sorted().joinToString(",")
                 showTimePicker = false
             }
         )
     }
-    if (showCustomUnitDialog) {
-        CustomUnitDialog(
-            onDismiss = { showCustomUnitDialog = false },
-            onConfirm = { custom ->
-                viewModel.addUnit(custom)
-                unit = custom.trim().lowercase()
-                showCustomUnitDialog = false
-            }
+    if (showStartDatePicker) {
+        val dateState = rememberDatePickerState(
+            initialSelectedDateMillis = localDateToPickerMillis(treatmentStartDate)
         )
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    dateState.selectedDateMillis?.let { treatmentStartDate = pickerMillisToLocalDate(it) }
+                    showStartDatePicker = false
+                }) { Text("Aceptar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDatePicker = false }) { Text("Cancelar") }
+            }
+        ) { DatePicker(state = dateState) }
     }
 }
 
@@ -368,31 +466,33 @@ private fun MedicationTimePickerDialog(
     )
 }
 
-@Composable
-private fun CustomUnitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var value by rememberSaveable { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Nueva medida") },
-        text = {
-            OutlinedTextField(
-                value = value,
-                onValueChange = { value = it.take(12) },
-                label = { Text("Abreviatura") },
-                placeholder = { Text("Ej. oz, cápsula") },
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { if (value.isNotBlank()) onConfirm(value) }, enabled = value.isNotBlank()) {
-                Text("Guardar")
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-}
-
 private fun normalizeTimes(value: String): List<String> {
     val regex = Regex("^(?:[01]\\d|2[0-3]):[0-5]\\d$")
     return value.split(",").map(String::trim).filter { regex.matches(it) }.distinct().sorted()
+}
+
+private val supportedDoseIntervals = setOf(1, 2, 3, 4, 6, 8, 12, 24)
+
+private fun calculateTreatmentEnd(start: Long, durationDays: Int): Long = Calendar.getInstance().apply {
+    timeInMillis = start
+    add(Calendar.DAY_OF_YEAR, durationDays - 1)
+}.timeInMillis
+
+private fun formatTreatmentDate(time: Long): String =
+    SimpleDateFormat("dd MMM yyyy", Locale("es", "NI")).format(Date(time))
+
+private fun localDateToPickerMillis(localTime: Long): Long {
+    val local = Calendar.getInstance().apply { timeInMillis = localTime }
+    return Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+        clear()
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
+}
+
+private fun pickerMillisToLocalDate(pickerTime: Long): Long {
+    val utc = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = pickerTime }
+    return Calendar.getInstance().apply {
+        clear()
+        set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
 }

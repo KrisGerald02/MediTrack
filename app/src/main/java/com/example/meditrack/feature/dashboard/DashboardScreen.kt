@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.meditrack.core.data.DoseStatus
 import com.example.meditrack.core.data.MedicationRepository
+import com.example.meditrack.core.data.MedicationEntity
 import com.example.meditrack.core.presentation.MediTrackViewModel
 import com.example.meditrack.core.ui.components.softScrollEdges
 import com.example.meditrack.core.ui.components.EmptyState
@@ -87,7 +88,8 @@ fun DashboardScreen(viewModel: MediTrackViewModel, embedded: Boolean = false) {
     }
     val taken = monthLogs.count { it.log.status == DoseStatus.TAKEN.name }
     val postponed = monthLogs.count { it.log.status == DoseStatus.POSTPONED.name }
-    val completed = taken + postponed
+    val missed = monthLogs.count { it.log.status == DoseStatus.MISSED.name }
+    val completed = taken + postponed + missed
     val adherence = if (completed == 0) 0 else (taken * 100 / completed)
     val lowStock = medications.count { it.active && it.stock <= it.lowStockThreshold }
     val periodName = if (hasDateRange) {
@@ -187,16 +189,40 @@ fun DashboardScreen(viewModel: MediTrackViewModel, embedded: Boolean = false) {
                         }
                     }
                 }
+                item { Text("Período de tratamientos", style = MaterialTheme.typography.titleLarge) }
+                item {
+                    val reportMedications = selectedTreatment?.let(::listOf) ?: medications
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            reportMedications.forEach { medication ->
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(medication.name, style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        treatmentPeriodSummary(medication),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 item {
                     if (wide) {
                         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             MetricCard("Tomadas", taken, Icons.Default.CheckCircle, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
                             MetricCard("Pospuestas", postponed, Icons.Default.MoreTime, MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+                            MetricCard("No tomadas", missed, Icons.Default.SkipNext, MaterialTheme.colorScheme.error, Modifier.weight(1f))
                         }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             MetricCard("Tomadas", taken, Icons.Default.CheckCircle, MaterialTheme.colorScheme.primary, Modifier.fillMaxWidth())
                             MetricCard("Pospuestas", postponed, Icons.Default.MoreTime, MaterialTheme.colorScheme.secondary, Modifier.fillMaxWidth())
+                            MetricCard("No tomadas", missed, Icons.Default.SkipNext, MaterialTheme.colorScheme.error, Modifier.fillMaxWidth())
                         }
                     }
                 }
@@ -249,6 +275,14 @@ fun DashboardScreen(viewModel: MediTrackViewModel, embedded: Boolean = false) {
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") } }
         ) { DateRangePicker(state = pickerState, modifier = Modifier.height(520.dp)) }
     }
+}
+
+private fun treatmentPeriodSummary(medication: MedicationEntity): String {
+    val formatter = SimpleDateFormat("dd MMM yyyy", Locale("es", "NI"))
+    val start = formatter.format(Date(medication.normalizedTreatmentStartDate))
+    val end = medication.treatmentEndDate?.let { formatter.format(Date(it)) }
+    return if (end == null) "Inicia $start · Sin fecha de finalización"
+    else "Inicia $start · Finaliza $end"
 }
 
 @Composable

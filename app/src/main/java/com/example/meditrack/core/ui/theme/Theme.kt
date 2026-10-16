@@ -30,6 +30,30 @@ private fun appColorScheme(theme: String) = when (theme) {
         surface = Color.White, surfaceVariant = Color(0xFFEDF7F3), onBackground = Color(0xFF17372C),
         onSurface = Color(0xFF17372C), onSurfaceVariant = Color(0xFF59736A)
     )
+    "RED" -> lightColorScheme(
+        primary = Color(0xFFDC2626), primaryContainer = Color(0xFFFEE2E2),
+        onPrimaryContainer = Color(0xFF7F1D1D), secondary = Color(0xFFEF4444),
+        secondaryContainer = Color(0xFFFFE4E6), tertiary = Color(0xFFBE123C),
+        tertiaryContainer = Color(0xFFFFE4E6), background = Color(0xFFFFF8F8),
+        surface = Color.White, surfaceVariant = Color(0xFFFAEEEE), onBackground = Color(0xFF3F1717),
+        onSurface = Color(0xFF3F1717), onSurfaceVariant = Color(0xFF805B5B)
+    )
+    "ORANGE" -> lightColorScheme(
+        primary = Color(0xFFEA580C), primaryContainer = Color(0xFFFFEDD5),
+        onPrimaryContainer = Color(0xFF7C2D12), secondary = Color(0xFFF97316),
+        secondaryContainer = Color(0xFFFFF1E6), tertiary = Color(0xFFD97706),
+        tertiaryContainer = Color(0xFFFEF3C7), background = Color(0xFFFFFAF5),
+        surface = Color.White, surfaceVariant = Color(0xFFFAF0E8), onBackground = Color(0xFF3D2417),
+        onSurface = Color(0xFF3D2417), onSurfaceVariant = Color(0xFF7A6458)
+    )
+    "TEAL" -> lightColorScheme(
+        primary = Color(0xFF0F766E), primaryContainer = Color(0xFFCCFBF1),
+        onPrimaryContainer = Color(0xFF134E4A), secondary = Color(0xFF14B8A6),
+        secondaryContainer = Color(0xFFD9FAF5), tertiary = Color(0xFF0891B2),
+        tertiaryContainer = Color(0xFFCFFAFE), background = Color(0xFFF5FCFB),
+        surface = Color.White, surfaceVariant = Color(0xFFEAF6F4), onBackground = Color(0xFF153735),
+        onSurface = Color(0xFF153735), onSurfaceVariant = Color(0xFF58736F)
+    )
     else -> lightColorScheme(
         primary = Blue, onPrimary = Color.White, primaryContainer = BlueContainer,
         onPrimaryContainer = BlueDark, secondary = Teal, secondaryContainer = Mint,
